@@ -87,30 +87,37 @@ pub fn query(name: String) -> String {
 }
 
 #[get("/v1/test/query_all")]
-pub fn query_all() -> String {
+pub fn query_all() -> Json<Vec<Dao>> {
     appconfig::check_dbfile(appconfig::DATABASE_FILE);
 
     let conn = sqlite::open(appconfig::DATABASE_FILE).expect("Database not readable!"); //we can unwrap we checked the file exists
 
-    let mut result: String = "".to_string();
+    let mut result: Vec<Dao> = Vec::new();
 
     let query = "SELECT * FROM daos";
 
-    conn
-    .iterate(query, |pairs| {
+    let mut dao_new: Dao = Dao::default();
+
+    conn.iterate(query, |pairs| {
         for &(name, value) in pairs.iter() {
             let current_value = value.unwrap();
-            result += (format!("{}: {} \r\n", &name, &current_value)).as_str();
+            match name {
+                "name" => dao_new.name = String::from(current_value),
+                "desc" => dao_new.description = String::from(current_value),
+                "addr" => dao_new.address = String::from(current_value),
+                "creator" => {
+                    dao_new.creator = String::from(current_value);
+                    let dao_copy = Dao { name: dao_new.name.clone(), description: dao_new.description.clone(), address: dao_new.address.clone(), creator: dao_new.creator.clone() };
+                    result.push(dao_copy);
+                },
+                &_ => ()
+            }
         }
         true
     })
     .unwrap();
 
-    if result == "" {
-        result += "No records found";
-    }
-
-    result
+    Json(result)
 }
 
 #[post("/v1/test/create", format = "json", data = "<dao>")]
